@@ -1,8 +1,12 @@
 import type { AgentStatus, LogEntry, PhaseId } from '../types';
 
+const CONFIGURED_URL = import.meta.env.VITE_API_URL as string | undefined;
+
+// In production we only talk to a backend if one is explicitly configured via
+// VITE_API_URL; otherwise we skip the (doomed) localhost probe and run the
+// dashboard in offline/simulation mode. In dev we default to the local server.
 const BASE: string =
-  (import.meta.env.VITE_API_URL as string | undefined) ??
-  'http://localhost:8787';
+  CONFIGURED_URL ?? (import.meta.env.DEV ? 'http://localhost:8787' : '');
 
 /** Minimal agent shape the server owns. */
 export interface ServerAgent {
@@ -16,6 +20,7 @@ export interface ServerAgent {
 
 /** Quick health probe — decides whether we run in live or offline mode. */
 export async function probe(timeoutMs = 1200): Promise<boolean> {
+  if (!BASE) return false; // no backend configured → offline mode
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
