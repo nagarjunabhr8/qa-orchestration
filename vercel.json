@@ -4,5 +4,10 @@
   "installCommand": "npm install --prefix ui",
   "buildCommand": "npm run build --prefix ui",
   "outputDirectory": "ui/dist",
+  "build": {
+    "env": {
+      "VITE_API_URL": "https://qa-orchestration-server.onrender.com"
+    }
+  },
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
