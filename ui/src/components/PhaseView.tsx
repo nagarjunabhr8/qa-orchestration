@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Agent, Phase } from '../types';
 import { STATUS_STYLES } from '../lib/status';
 import StatusBadge from './StatusBadge';
@@ -5,6 +6,7 @@ import type { TestCase } from '../lib/testCases';
 import type { PrdArtifacts, PrdDoc } from '../lib/prd';
 import { downloadCasesExcel } from '../lib/excel';
 import { downloadTestPlanWord } from '../lib/word';
+import AutomationWizard from './AutomationWizard';
 
 /**
  * Agents that can export their output to Excel, keyed by slug. The dataset
@@ -65,6 +67,8 @@ export default function PhaseView({
   onRequestRun,
   onReset,
 }: Props) {
+  const [wizardOpen, setWizardOpen] = useState(false);
+
   return (
     <div className="flex-1 overflow-y-auto p-5">
       <div className="mb-4">
@@ -191,12 +195,28 @@ export default function PhaseView({
                         <span>⬇️</span> Download Word
                       </button>
                     )}
+                  {agent.slug === 'automation-developer' && (
+                    <button
+                      onClick={() => setWizardOpen(true)}
+                      className="ml-auto flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-500"
+                      title="Configure and generate Playwright automation code"
+                    >
+                      <span>✨</span> Generate Code
+                    </button>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
       )}
+
+      <AutomationWizard
+        open={wizardOpen}
+        activePrd={activePrd}
+        artifacts={artifacts}
+        onClose={() => setWizardOpen(false)}
+      />
     </div>
   );
 }
