@@ -98,7 +98,7 @@ function selectCases(cfg: AutomationConfig, art: PrdArtifacts): TestCase[] {
   }
   // Manual: synthesise lightweight cases from the entered titles.
   return cfg.manualCases.map((title, i) => ({
-    id: `TC-${String(i + 1).padStart(3, '0')}`,
+    id: `TC-MAN-${String(i + 1).padStart(3, '0')}`,
     title,
     feature: 'General',
     type: 'Positive' as const,
@@ -108,6 +108,9 @@ function selectCases(cfg: AutomationConfig, art: PrdArtifacts): TestCase[] {
     testData: 'n/a',
     expectedResult: 'The behaviour matches the test case description.',
     acRef: `AC-${i + 1}`,
+    automationFeasibility: 'HIGH' as const,
+    feasibilityReason: 'User-specified case; automatable as a standard UI flow.',
+    playwrightSnippet: '',
   }));
 }
 

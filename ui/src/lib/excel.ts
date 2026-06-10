@@ -35,6 +35,7 @@ export function downloadCasesExcel(cases: TestCase[], opts: ExcelOptions): void 
     ['Positive', byType('Positive')],
     ['Negative', byType('Negative')],
     ['Edge', byType('Edge')],
+    ['Destructive', byType('Destructive')],
     ['Feature areas', features.length],
     [],
     ['Feature', 'Case count'],
@@ -56,6 +57,9 @@ export function downloadCasesExcel(cases: TestCase[], opts: ExcelOptions): void 
     'Test Data',
     'Expected Result',
     'AC Reference',
+    'Automation Feasibility',
+    'Feasibility Reason',
+    'Playwright Snippet',
   ];
   const rows = cases.map((c) => [
     c.id,
@@ -68,19 +72,25 @@ export function downloadCasesExcel(cases: TestCase[], opts: ExcelOptions): void 
     c.testData,
     c.expectedResult,
     c.acRef,
+    c.automationFeasibility,
+    c.feasibilityReason,
+    c.playwrightSnippet || '(manual — no snippet)',
   ]);
   const sheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
   sheet['!cols'] = [
-    { wch: 12 }, // ID
+    { wch: 14 }, // ID
     { wch: 34 }, // Title
     { wch: 16 }, // Feature
-    { wch: 10 }, // Type
+    { wch: 12 }, // Type
     { wch: 14 }, // Priority
     { wch: 42 }, // Preconditions
     { wch: 48 }, // Steps
     { wch: 30 }, // Test Data
     { wch: 50 }, // Expected Result
     { wch: 12 }, // AC Ref
+    { wch: 14 }, // Feasibility
+    { wch: 40 }, // Feasibility Reason
+    { wch: 50 }, // Playwright Snippet
   ];
   // Freeze the header row.
   sheet['!freeze'] = { xSplit: 0, ySplit: 1 } as never;

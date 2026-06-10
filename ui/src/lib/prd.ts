@@ -258,6 +258,7 @@ export function agentOutputFor(
     pos: tc.filter((c) => c.type === 'Positive').length,
     neg: tc.filter((c) => c.type === 'Negative').length,
     edge: tc.filter((c) => c.type === 'Edge').length,
+    destructive: tc.filter((c) => c.type === 'Destructive').length,
   };
   switch (slug) {
     case 'prd-analyser':
@@ -267,7 +268,7 @@ export function agentOutputFor(
     case 'test-plan-creator':
       return `Test plan drafted for "${prd.profile.title}": ${f.length} test areas, risk-based prioritisation.`;
     case 'test-case-generator':
-      return `Generated ${tc.length} test cases (${counts.pos} positive, ${counts.neg} negative, ${counts.edge} edge). Coverage: 100% of ACs.`;
+      return `Generated ${tc.length} test cases (${counts.pos} positive, ${counts.neg} negative, ${counts.edge} edge, ${counts.destructive} destructive). Coverage: 100% of ACs.`;
     case 'smoke-identifier':
       return `Selected ${art.smoke.length} smoke tests covering ${prd.profile.criticalFeatures.join(', ')} happy paths.`;
     case 'regression-builder':

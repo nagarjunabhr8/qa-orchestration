@@ -171,6 +171,9 @@ function answerTestCases(q: string, ctx: KbContext): string {
   } else if (/\bedge\b/.test(q)) {
     filtered = filtered.filter((c) => c.type === 'Edge');
     labels.push('edge');
+  } else if (/\bdestructive\b/.test(q)) {
+    filtered = filtered.filter((c) => c.type === 'Destructive');
+    labels.push('destructive');
   }
 
   // No filter → give the breakdown.
@@ -179,7 +182,8 @@ function answerTestCases(q: string, ctx: KbContext): string {
     const pos = all.filter((c) => c.type === 'Positive').length;
     const neg = all.filter((c) => c.type === 'Negative').length;
     const edge = all.filter((c) => c.type === 'Edge').length;
-    return `From "${ctx.activePrd.name}" there are ${all.length} test cases (${pos} positive, ${neg} negative, ${edge} edge) covering ${featureNames.join(', ')}.\nBy priority:\n• ${counts['P0 - Critical'] ?? 0} P0 (Critical)\n• ${counts['P1 - High'] ?? 0} P1 (High)\n• ${counts['P2 - Medium'] ?? 0} P2 (Medium)\n• ${counts['P3 - Low'] ?? 0} P3 (Low)\nAsk for a priority (e.g. "P0 test cases") or a feature (e.g. "${featureNames[0]} test cases").`;
+    const destructive = all.filter((c) => c.type === 'Destructive').length;
+    return `From "${ctx.activePrd.name}" there are ${all.length} test cases (${pos} positive, ${neg} negative, ${edge} edge, ${destructive} destructive) covering ${featureNames.join(', ')}.\nBy priority:\n• ${counts['P0 - Critical'] ?? 0} P0 (Critical)\n• ${counts['P1 - High'] ?? 0} P1 (High)\n• ${counts['P2 - Medium'] ?? 0} P2 (Medium)\n• ${counts['P3 - Low'] ?? 0} P3 (Low)\nAsk for a priority (e.g. "P0 test cases") or a feature (e.g. "${featureNames[0]} test cases").`;
   }
 
   const scope = labels.join(', ') + ' ';
@@ -226,7 +230,7 @@ export const TOPICS: Topic[] = [
     keywords: [
       'test case', 'testcase', 'test scenario', 'scenario', 'test steps', 'steps',
       'expected result', 'module testing', 'test script', 'cases',
-      'p0', 'p1', 'p2', 'p3', 'positive', 'negative', 'edge', 'smoke', 'regression',
+      'p0', 'p1', 'p2', 'p3', 'positive', 'negative', 'edge', 'destructive', 'smoke', 'regression',
     ],
     answer: (ctx, q) => {
       if (!ctx.artifacts || !ctx.activePrd) return NO_PRD;
