@@ -143,57 +143,209 @@ interface BuiltCase {
   feasibilityReason: string;
 }
 
-const TYPE_BUILDERS: Record<
-  CaseType,
-  (f: string, c: { action: string; data: string; expect: string }) => BuiltCase
-> = {
-  Positive: (f, c) => ({
-    title: `${f}: valid flow succeeds`,
-    preconditions: 'User has a valid account; system is in a known good state.',
-    steps: `1. Open the ${f} module.\n2. ${cap(c.action)}.\n3. Confirm the result.`,
-    testData: c.data,
-    expectedResult: `Successfully completes — ${c.expect}.`,
-    automationFeasibility: 'HIGH',
-    feasibilityReason: 'Deterministic happy path with stable selectors.',
-  }),
-  Negative: (f, c) => ({
-    title: `${f}: invalid input is rejected`,
-    preconditions: 'User is on the relevant screen with invalid/incomplete data.',
-    steps: `1. Open the ${f} module.\n2. Attempt to ${c.action} with invalid data.\n3. Observe the error handling.`,
-    testData: `${c.data} → tampered to INVALID`,
-    expectedResult:
-      'Validation error "Invalid input — please check your details" is shown (HTTP 400); the action is blocked and no state changes.',
-    automationFeasibility: 'HIGH',
-    feasibilityReason: 'Error message and status code are assertable.',
-  }),
-  Edge: (f, c) => ({
-    title: `${f}: boundary / edge condition handled`,
-    preconditions: 'System is at a boundary condition (limits, empty, max values).',
-    steps: `1. Open the ${f} module.\n2. ${cap(c.action)} at the boundary limit.\n3. Verify graceful handling.`,
-    testData: `${c.data} (boundary value: min/max/empty)`,
-    expectedResult:
-      'The boundary case is handled gracefully — no crash, a clear message, and data integrity is preserved.',
-    automationFeasibility: 'MEDIUM',
-    feasibilityReason: 'Boundary data is scriptable but may need varied fixtures.',
-  }),
-  Destructive: (f, c) => ({
-    title: `${f}: resilience under stress / corrupted data`,
-    preconditions: 'System reachable; ability to inject load, kill sessions, or corrupt inputs.',
-    steps: `1. Open the ${f} module.\n2. ${cap(c.action)} while injecting stress (concurrent requests, dropped connection, corrupted payload).\n3. Observe recovery behaviour.`,
-    testData: `${c.data} + malformed/oversized payload, 100 concurrent requests`,
-    expectedResult:
-      'System degrades gracefully — returns HTTP 5xx with a retry hint or queues the request; no data corruption and it recovers when load subsides.',
-    automationFeasibility: 'LOW',
-    feasibilityReason: 'MANUAL: needs chaos/load tooling and infra access; not a standard UI script.',
-  }),
+/**
+ * Distinct scenario variants per test type. Each variant produces a
+ * genuinely different case (its own scenario, steps, data, and expected
+ * result) so no two generated cases are duplicates of one another.
+ */
+interface Variant {
+  /** Short scenario label, appended to the title to keep cases unique. */
+  scenario: string;
+  build: (f: string, c: { action: string; data: string; expect: string }) => BuiltCase;
+}
+
+const POSITIVE_VARIANTS: Variant[] = [
+  {
+    scenario: 'valid happy path',
+    build: (f, c) => ({
+      title: `${f}: valid happy path succeeds`,
+      preconditions: 'User is authenticated; system is in a known good state.',
+      steps: `1. Open the ${f} module.\n2. ${cap(c.action)} with valid input.\n3. Confirm the result.`,
+      testData: c.data,
+      expectedResult: `Successfully completes — ${c.expect}.`,
+      automationFeasibility: 'HIGH',
+      feasibilityReason: 'Deterministic happy path with stable selectors.',
+    }),
+  },
+  {
+    scenario: 'minimum required fields',
+    build: (f, c) => ({
+      title: `${f}: succeeds with only the required fields`,
+      preconditions: 'User is authenticated; optional fields left blank.',
+      steps: `1. Open the ${f} module.\n2. ${cap(c.action)} providing only mandatory fields.\n3. Submit.`,
+      testData: `${c.data} (required fields only)`,
+      expectedResult: `The action completes successfully using only required data — ${c.expect}.`,
+      automationFeasibility: 'HIGH',
+      feasibilityReason: 'Mandatory-field path is deterministic.',
+    }),
+  },
+  {
+    scenario: 'persists after reload',
+    build: (f) => ({
+      title: `${f}: result persists after page reload`,
+      preconditions: 'A successful action has just been performed.',
+      steps: `1. Complete a valid ${f} action.\n2. Reload the page.\n3. Re-open the ${f} module.`,
+      testData: 'Previously saved record',
+      expectedResult: `The saved ${f} data is still present and unchanged after reload.`,
+      automationFeasibility: 'HIGH',
+      feasibilityReason: 'State persistence is observable after navigation.',
+    }),
+  },
+  {
+    scenario: 'confirmation feedback',
+    build: (f) => ({
+      title: `${f}: shows a success confirmation`,
+      preconditions: 'User is on the relevant screen.',
+      steps: `1. Perform a valid ${f} action.\n2. Observe the on-screen feedback.`,
+      testData: 'Valid input',
+      expectedResult: `A clear success message/toast is shown confirming the ${f} action.`,
+      automationFeasibility: 'HIGH',
+      feasibilityReason: 'Confirmation element is assertable.',
+    }),
+  },
+  {
+    scenario: 'audit/history updated',
+    build: (f) => ({
+      title: `${f}: action is recorded in history/audit`,
+      preconditions: 'History/activity view is accessible.',
+      steps: `1. Perform a valid ${f} action.\n2. Open the history/activity view.`,
+      testData: 'Valid input',
+      expectedResult: `The ${f} action appears in history with a correct timestamp and details.`,
+      automationFeasibility: 'MEDIUM',
+      feasibilityReason: 'Requires navigating to a secondary view.',
+    }),
+  },
+];
+
+const NEGATIVE_VARIANTS: Variant[] = [
+  {
+    scenario: 'missing required field',
+    build: (f) => ({
+      title: `${f}: missing required field is rejected`,
+      preconditions: 'User is on the relevant screen.',
+      steps: `1. Open the ${f} module.\n2. Submit with a required field left empty.\n3. Observe validation.`,
+      testData: 'Required field omitted',
+      expectedResult:
+        'A field-level validation error "This field is required" is shown; submission is blocked (no state change).',
+      automationFeasibility: 'HIGH',
+      feasibilityReason: 'Required-field validation is assertable.',
+    }),
+  },
+  {
+    scenario: 'invalid format',
+    build: (f, c) => ({
+      title: `${f}: invalid input format is rejected`,
+      preconditions: 'User is on the relevant screen.',
+      steps: `1. Open the ${f} module.\n2. Enter badly formatted input and submit.\n3. Observe error handling.`,
+      testData: `${c.data} → malformed format`,
+      expectedResult:
+        'A clear format error is shown (HTTP 400); the action is blocked and nothing is saved.',
+      automationFeasibility: 'HIGH',
+      feasibilityReason: 'Format error message and status code are assertable.',
+    }),
+  },
+  {
+    scenario: 'unauthorized access',
+    build: (f) => ({
+      title: `${f}: unauthorized access is denied`,
+      preconditions: 'User is not logged in / lacks permission.',
+      steps: `1. Attempt to access the ${f} module without authorization.\n2. Observe the response.`,
+      testData: 'No / insufficient credentials',
+      expectedResult:
+        'Access is denied with HTTP 401/403 and the user is redirected to login or shown a permission error.',
+      automationFeasibility: 'HIGH',
+      feasibilityReason: 'Auth response is assertable.',
+    }),
+  },
+  {
+    scenario: 'duplicate submission',
+    build: (f) => ({
+      title: `${f}: duplicate submission is prevented`,
+      preconditions: 'A valid record already exists.',
+      steps: `1. Perform a ${f} action that already exists.\n2. Submit again.\n3. Observe handling.`,
+      testData: 'Duplicate of an existing record',
+      expectedResult:
+        'A duplicate error (HTTP 409) is shown; no second record is created.',
+      automationFeasibility: 'MEDIUM',
+      feasibilityReason: 'Requires seeding an existing record first.',
+    }),
+  },
+];
+
+const EDGE_VARIANTS: Variant[] = [
+  {
+    scenario: 'maximum length / value',
+    build: (f, c) => ({
+      title: `${f}: maximum boundary value handled`,
+      preconditions: 'System ready at the upper boundary.',
+      steps: `1. Open the ${f} module.\n2. ${cap(c.action)} at the maximum allowed value/length.\n3. Verify behaviour.`,
+      testData: `${c.data} at maximum boundary`,
+      expectedResult:
+        'The maximum value is accepted; one unit beyond is rejected with a clear message. No truncation or crash.',
+      automationFeasibility: 'MEDIUM',
+      feasibilityReason: 'Boundary fixtures are scriptable.',
+    }),
+  },
+  {
+    scenario: 'empty / zero state',
+    build: (f) => ({
+      title: `${f}: empty / zero state handled`,
+      preconditions: 'No data exists for this feature yet.',
+      steps: `1. Open the ${f} module with no existing data.\n2. Observe the empty state.`,
+      testData: 'Empty dataset',
+      expectedResult:
+        'A friendly empty-state message is shown; no errors and no broken layout.',
+      automationFeasibility: 'HIGH',
+      feasibilityReason: 'Empty state is deterministic and assertable.',
+    }),
+  },
+];
+
+const DESTRUCTIVE_VARIANTS: Variant[] = [
+  {
+    scenario: 'concurrent requests',
+    build: (f, c) => ({
+      title: `${f}: resilience under concurrent load`,
+      preconditions: 'Ability to issue many simultaneous requests.',
+      steps: `1. Open the ${f} module.\n2. Fire 100 concurrent ${f} requests.\n3. Observe stability and data integrity.`,
+      testData: `${c.data} × 100 concurrent`,
+      expectedResult:
+        'No data corruption or deadlock; excess load is queued or rejected with HTTP 429/503 and recovers when load subsides.',
+      automationFeasibility: 'LOW',
+      feasibilityReason: 'MANUAL: needs load tooling and infra access.',
+    }),
+  },
+  {
+    scenario: 'corrupted / oversized payload',
+    build: (f) => ({
+      title: `${f}: rejects corrupted / oversized payload`,
+      preconditions: 'Ability to send a malformed/oversized request.',
+      steps: `1. Send a corrupted or oversized payload to the ${f} endpoint.\n2. Observe handling.`,
+      testData: 'Malformed + oversized payload',
+      expectedResult:
+        'The request is rejected (HTTP 400/413) without crashing the service; no partial/corrupt data is persisted.',
+      automationFeasibility: 'LOW',
+      feasibilityReason: 'MANUAL: needs crafted payloads and backend access.',
+    }),
+  },
+];
+
+const VARIANTS: Record<CaseType, Variant[]> = {
+  Positive: POSITIVE_VARIANTS,
+  Negative: NEGATIVE_VARIANTS,
+  Edge: EDGE_VARIANTS,
+  Destructive: DESTRUCTIVE_VARIANTS,
 };
 
-/** Cases generated per feature, by type (positive, negative, edge, destructive). */
+/**
+ * Cases generated per feature, by type. Counts are bounded by the number
+ * of distinct variants available so no scenario repeats within a feature.
+ */
 const PER_FEATURE: Array<[CaseType, number]> = [
-  ['Positive', 9],
-  ['Negative', 4],
-  ['Edge', 2],
-  ['Destructive', 2],
+  ['Positive', POSITIVE_VARIANTS.length],
+  ['Negative', NEGATIVE_VARIANTS.length],
+  ['Edge', EDGE_VARIANTS.length],
+  ['Destructive', DESTRUCTIVE_VARIANTS.length],
 ];
 
 export interface CaseSetOptions {
@@ -204,8 +356,32 @@ export interface CaseSetOptions {
 }
 
 /**
- * Generate the full test-case set for a list of features.
- * For 5 features → 45 positive, 20 negative, 10 edge, 10 destructive = 85 cases.
+ * Fingerprint for strict deduplication (agent 04 spec, RULE 1):
+ * feature | scenario(title) | inputClass(type) | condition(testData).
+ */
+function fingerprint(c: Pick<TestCase, 'feature' | 'type' | 'title' | 'testData'>): string {
+  return [c.feature, c.type, c.title, c.testData]
+    .map((s) => s.trim().toLowerCase())
+    .join('|');
+}
+
+/** Drop any case whose fingerprint has already been seen. */
+function dedupe(cases: TestCase[]): TestCase[] {
+  const seen = new Set<string>();
+  const out: TestCase[] = [];
+  for (const c of cases) {
+    const fp = fingerprint(c);
+    if (seen.has(fp)) continue;
+    seen.add(fp);
+    out.push(c);
+  }
+  return out;
+}
+
+/**
+ * Generate the full test-case set for a list of features. Each feature
+ * gets one case per distinct scenario variant (no repeated scenarios), and
+ * a final fingerprint pass removes any residual duplicates.
  */
 export function generateTestCasesForFeatures(
   features: string[],
@@ -218,13 +394,14 @@ export function generateTestCasesForFeatures(
   let acCounter = 0;
 
   for (const [type, count] of PER_FEATURE) {
+    const variants = VARIANTS[type];
     for (const feature of features) {
       const copy = copyFor(feature);
       const token = moduleToken(feature);
-      for (let i = 0; i < count; i++) {
+      for (let i = 0; i < count && i < variants.length; i++) {
         acCounter += 1;
         moduleCounters[token] = (moduleCounters[token] ?? 0) + 1;
-        const built = TYPE_BUILDERS[type](feature, copy);
+        const built = variants[i].build(feature, copy);
         cases.push({
           id: opts.idPrefix
             ? `${opts.idPrefix}-${String(acCounter).padStart(3, '0')}`
@@ -239,7 +416,7 @@ export function generateTestCasesForFeatures(
       }
     }
   }
-  return cases;
+  return dedupe(cases);
 }
 
 /** Smoke subset: positive P0/P1 cases of the critical features, capped. */
@@ -383,7 +560,7 @@ export function generateTestCasesFromRequirements(
     const critical = criticalFeatures.includes(req.feature);
     cases.push(...casesForRequirement(req, i + 1, critical));
   });
-  return cases;
+  return dedupe(cases);
 }
 
 // ── Backwards-compatible default (e-commerce) helpers ───────────────
