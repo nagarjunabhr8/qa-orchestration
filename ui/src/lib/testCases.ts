@@ -8,8 +8,8 @@
  * minimal Playwright snippet for automatable cases.
  *
  * Cases are derived from a PRD's feature list, so different PRDs produce
- * different suites. Per feature: 9 positive, 4 negative, 2 edge, 2
- * destructive = 17/feature.
+ * different suites. Per feature: 5 positive, 4 negative, 6 edge/boundary,
+ * 2 destructive = 17/feature.
  */
 
 export type CaseType = 'Positive' | 'Negative' | 'Edge' | 'Destructive';
@@ -274,29 +274,81 @@ const NEGATIVE_VARIANTS: Variant[] = [
 
 const EDGE_VARIANTS: Variant[] = [
   {
-    scenario: 'maximum length / value',
-    build: (f, c) => ({
-      title: `${f}: maximum boundary value handled`,
-      preconditions: 'System ready at the upper boundary.',
-      steps: `1. Open the ${f} module.\n2. ${cap(c.action)} at the maximum allowed value/length.\n3. Verify behaviour.`,
-      testData: `${c.data} at maximum boundary`,
+    scenario: 'empty / zero state',
+    build: (f) => ({
+      title: `${f}: empty / zero boundary handled`,
+      preconditions: 'No data exists for this feature yet.',
+      steps: `1. Open the ${f} module with no existing data / a zero value.\n2. Submit or observe the empty state.\n3. Confirm handling.`,
+      testData: 'Empty dataset / value = 0 [boundary: zero]',
       expectedResult:
-        'The maximum value is accepted; one unit beyond is rejected with a clear message. No truncation or crash.',
-      automationFeasibility: 'MEDIUM',
-      feasibilityReason: 'Boundary fixtures are scriptable.',
+        'A friendly empty-state message is shown (or zero is rejected where invalid); no errors and no broken layout.',
+      automationFeasibility: 'HIGH',
+      feasibilityReason: 'Empty/zero state is deterministic and assertable.',
     }),
   },
   {
-    scenario: 'empty / zero state',
-    build: (f) => ({
-      title: `${f}: empty / zero state handled`,
-      preconditions: 'No data exists for this feature yet.',
-      steps: `1. Open the ${f} module with no existing data.\n2. Observe the empty state.`,
-      testData: 'Empty dataset',
+    scenario: 'minimum valid value',
+    build: (f, c) => ({
+      title: `${f}: minimum valid boundary is accepted`,
+      preconditions: 'System ready at the lower valid boundary.',
+      steps: `1. Open the ${f} module.\n2. ${cap(c.action)} at the smallest allowed value/length (e.g. 1).\n3. Submit and verify.`,
+      testData: `${c.data} → minimum allowed [boundary: min valid, e.g. 1]`,
       expectedResult:
-        'A friendly empty-state message is shown; no errors and no broken layout.',
-      automationFeasibility: 'HIGH',
-      feasibilityReason: 'Empty state is deterministic and assertable.',
+        'The minimum valid value is accepted and processed normally; no off-by-one rejection.',
+      automationFeasibility: 'MEDIUM',
+      feasibilityReason: 'Lower-boundary fixtures are scriptable.',
+    }),
+  },
+  {
+    scenario: 'maximum valid value',
+    build: (f, c) => ({
+      title: `${f}: maximum valid boundary is accepted`,
+      preconditions: 'System ready at the upper valid boundary.',
+      steps: `1. Open the ${f} module.\n2. ${cap(c.action)} at the largest allowed value/length.\n3. Submit and verify.`,
+      testData: `${c.data} → maximum allowed [boundary: max valid]`,
+      expectedResult:
+        'The maximum allowed value is accepted without truncation, rounding, or crash.',
+      automationFeasibility: 'MEDIUM',
+      feasibilityReason: 'Upper-boundary fixtures are scriptable.',
+    }),
+  },
+  {
+    scenario: 'one above maximum',
+    build: (f, c) => ({
+      title: `${f}: one above maximum is rejected`,
+      preconditions: 'System ready just past the upper valid boundary.',
+      steps: `1. Open the ${f} module.\n2. ${cap(c.action)} at one unit ABOVE the maximum allowed.\n3. Observe rejection.`,
+      testData: `${c.data} → max + 1 [boundary: one above max — should reject]`,
+      expectedResult:
+        'The value is rejected with a clear, specific limit message; nothing is saved and no overflow occurs.',
+      automationFeasibility: 'MEDIUM',
+      feasibilityReason: 'Just-past-boundary rejection is assertable.',
+    }),
+  },
+  {
+    scenario: 'special characters',
+    build: (f) => ({
+      title: `${f}: special / unicode characters handled safely`,
+      preconditions: 'User is on the relevant input screen.',
+      steps: `1. Open the ${f} module.\n2. Enter special/unicode input such as O'Brien-García, "Apt #5", or emoji.\n3. Submit and verify rendering + storage.`,
+      testData: `name="O'Brien-García", note="Apt #5, Floor 2 🚀" [boundary: special chars]`,
+      expectedResult:
+        'Special/unicode characters are accepted, stored, and rendered correctly (no encoding corruption, no injection).',
+      automationFeasibility: 'MEDIUM',
+      feasibilityReason: 'Character-set fixtures are scriptable.',
+    }),
+  },
+  {
+    scenario: 'very long input',
+    build: (f) => ({
+      title: `${f}: oversized input beyond field limit is rejected`,
+      preconditions: 'A field with a defined maximum length exists.',
+      steps: `1. Open the ${f} module.\n2. Paste input ONE character beyond the field's max length (e.g. 1001 chars in a 1000-char field).\n3. Observe handling.`,
+      testData: '1001-character string in a 1000-char field [boundary: one over max length]',
+      expectedResult:
+        'Input is rejected or capped at the limit with a clear message; no layout break and no silent truncation of saved data.',
+      automationFeasibility: 'MEDIUM',
+      feasibilityReason: 'Length-boundary fixtures are scriptable.',
     }),
   },
 ];
